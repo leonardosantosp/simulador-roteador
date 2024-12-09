@@ -23,15 +23,6 @@ double gera_tempo(double l) {
     return (-1.0 / l) * log(uniforme());
 }
 
-double min(double n1, double n2, double n3) {
-    if (n1 < n2 && n1 < n3) {
-        return n1;
-    } else if (n2 < n3) {
-        return n2;
-    }
-    return n3;
-}
-
 void inicia_little(little *n) {
     n->num_eventos = 0;
     n->soma_areas = 0.0;
@@ -60,8 +51,86 @@ double calcula_capacidade_link(double taxa_chegada, double tamanho_medio_pacote,
     return (taxa_chegada * tamanho_medio_pacote) / ocupacao_desejada;
 }
 
+int get_left_child(int index){
+    return 2 * index + 1;
+}
+
+int get_right_child(int index){
+    return 2 * index + 2;
+}
+
+int get_parent(int index) {
+    if (index == 0) {
+        return -1; // Indica que o índice 0 (raiz) não tem pai
+    }
+    return (index - 1) / 2;
+}
+
+void swap(double heap[], int i, int j){
+    double aux = heap[i];
+    heap[i] = heap[j];
+    heap[j] = aux;
+}
+
+double insere_heap(double heap[], int* size, double value){
+    int index = *size;
+    heap[index] = value;
+    (*size)++;
+
+    int current = index;
+    while (current > 0 && heap[current] < heap[get_parent(current)]) {
+        swap(heap, current, get_parent(current));
+        current = get_parent(current); // Move para o pai
+    }
+}
+
+// Remove a raiz da heap
+double remove_root(double heap[], int* size) {
+    double root_return;
+    if (*size <= 0) {
+        printf("Heap vazia! Nada para remover.\n");
+        return -1;
+    }else if(*size == 1){
+        (*size)--;
+        return heap[0];
+    }
+
+    root_return = heap[0];
+    // Substitui a raiz pelo último elemento
+    heap[0] = heap[*size - 1];
+    (*size)--; // Diminui o tamanho da heap
+
+    // Ajusta a heap para manter a propriedade
+    int current = 0;
+
+    while (1) {
+        int left = get_left_child(current);
+        int right = get_right_child(current);
+        int smallest = current;
+
+        // Encontra o menor entre o nó atual e seus filhos
+        if (left < *size && heap[left] < heap[smallest]) {
+            smallest = left;
+        }
+        if (right < *size && heap[right] < heap[smallest]) {
+            smallest = right;
+        }
+
+        // Se o menor não for o nó atual, troca e continua
+        if (smallest != current) {
+            swap(heap, current, smallest);
+            current = smallest; // Move para o próximo nível
+        } else {
+            break; // Heap já está ajustada
+        }
+    }
+    return root_return;
+}
+
 int main() {
-    srand(time(NULL)); // Inicializa a semente para a geração de números aleatórios
+    double heap[1000];
+    int size = 0;
+    srand(30); // Inicializa a semente para a geração de números aleatórios
     int n = 0;
     FILE *in_file = fopen("", "w");
     double parametro_chegada = 100;
@@ -134,10 +203,12 @@ int main() {
     double erro_little = 0.0;
     double ocupacao = 0.0;
 
-    
+    insere_heap(heap, &size, tempo_chegada);
+    insere_heap(heap, &size, extrai_dados);
 
     while (tempo_decorrido <= tempo_simulacao) {
-        tempo_decorrido = min(tempo_chegada, tempo_saida, extrai_dados);
+
+        tempo_decorrido = remove_root(heap, &size);
 
         // Chegada de pacotes
         if (tempo_decorrido == tempo_chegada) {
@@ -146,6 +217,8 @@ int main() {
                 double tamanho_pacote = gera_tamanho_pacote();
                  // Ajuste da taxa de saída
                 tempo_saida = tempo_decorrido + gera_tempo_atendimento(tamanho_pacote,capacidade_link);
+
+                insere_heap(heap, &size, tempo_saida);
 
                 if (tempo_saida <= extrai_dados) {
                     soma_ocupacao += tempo_saida - tempo_decorrido;
@@ -159,6 +232,7 @@ int main() {
             fila_max = fila > fila_max ? fila : fila_max;
             tempo_chegada = tempo_decorrido + gera_tempo(parametro_chegada);
 
+            insere_heap(heap, &size, tempo_chegada);
             // Little
             en.soma_areas += (tempo_decorrido - en.tempo_anterior) * en.num_eventos;
             en.num_eventos++;
@@ -178,6 +252,9 @@ int main() {
                 double tamanho_pacote = gera_tamanho_pacote();
                  // Iniciar com pacote de 550 Bytes
                 tempo_saida = tempo_decorrido + gera_tempo_atendimento(tamanho_pacote, capacidade_link);
+
+                insere_heap(heap, &size, tempo_saida);
+
                 if (tempo_saida <= extrai_dados) {
                     soma_ocupacao += tempo_saida - tempo_decorrido;
                 } else {
@@ -219,6 +296,8 @@ int main() {
             fprintf(in_file, "%lf \n", lambda_param);
 
             extrai_dados += 100.0;
+
+            insere_heap(heap, &size, extrai_dados);
         }
     }
 
